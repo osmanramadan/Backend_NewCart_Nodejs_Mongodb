@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "forceConsistentCasingInFileNames":true,                         
+    "module": "commonjs",                     
+    "lib": ["ES2018", "DOM"], 
+    "outDir": "./build",                        
+    "strict": true,                           
+    "noImplicitAny": true,            
+    "esModuleInterop": true,
+    "typeRoots": ["./types"],    
+  },
+  "exclude": ["node_modules", "spec","./build","./src/tests"]
+}
