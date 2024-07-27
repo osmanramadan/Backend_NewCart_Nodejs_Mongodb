@@ -4,10 +4,11 @@ const {Schema} = mongoose;
 const productSchema = new Schema({
     product_id: {type: String, unique:true},
     name: String,
+    description:String,   
     price: Number,
-    weight: Number,
-    measurement: String,
-    category: String,
+    category:String,
+    color:[],
+    size:[],
     image:
     {
         type: String,
@@ -16,7 +17,10 @@ const productSchema = new Schema({
     stock: {
         type: Number,
         default: 0
-    }
+    },
+    flashsales:{type: Boolean,default:false},
+    discount:{type:Number,default:0},
+    offer:{type:Boolean,default:false}
 });
 
 const Products = mongoose.model('Products',productSchema);
