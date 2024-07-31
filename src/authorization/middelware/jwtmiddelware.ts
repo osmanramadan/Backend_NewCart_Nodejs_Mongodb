@@ -16,6 +16,7 @@ const verify: RequestHandler = async (
     const authorizationHeader = req.headers.authorization as string;
     const token = authorizationHeader.split(' ')[1];
     const decoded = jwt.verify(token, TOKEN_SECRET);
+
     // @ts-ignore
     req.body.id = decoded.id;
     next();

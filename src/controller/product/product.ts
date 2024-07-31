@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import Products from '../../model/products';
 import Pagination from '../../utils/pagination';
-import { product } from '../../types/product';
+import { orderProduct, product } from '../../types/product';
+import generatetoken from '../../authorization/signtoken';
+import products from '../../routes/api/product';
 
 
 
@@ -10,24 +12,60 @@ import { product } from '../../types/product';
 /**
  * insert products
  *
- * @param {array<object>} req.body - an array of new product 
+ * @param {array<object>} req.body.product - an array of new product 
  */
 
-export const insertproducts= async (req: Request, res: Response): Promise<void> => {
+export const insertproduct= async (req: Request, res: Response) => {
     const product:product = req.body;
-  
+
+    if (!product) {
+      res.status(400).json({ message: 'Missing required value product' });
+      return;
+    }
     const newProduct = new Products(product)
     try {
       await newProduct.save();
-      res.status(201).json({"status":"success","data":newProduct});
-    } catch (error) {
-      const err = error as Error;
-      res.status(409).json({ message: err.message });
+      return res.status(201).json({"status":"success","data":newProduct});
+    } catch (e) {
+      
+      const err = e as Error;
+      return res.status(400).json({status:"fail",message: err.message });
     }
   };
   
 
+/**
+ * get product details 
+ *
+ * @param {params} id
+ */
 
+  export const showproductdetails = async (req: Request, res: Response): Promise<void> => {
+    try {
+      
+      if (!req.params.id)
+          res.status(400).json({ message: "Id doesn't exist" });
+
+      const product = await Products.findOne({product_id:req.params.id})
+
+      res.status(200).json({"status":"success", details:product});
+      return;
+
+    } catch (e) {
+      
+      const err = e as Error;
+      res.status(400).json({status:"fail",message: err.message });
+      return;
+    }
+  };
+
+
+
+/**
+ * get product by category
+ *
+ * @param {string} category 
+ */
 
 const showproductspercategory = async (category: string): Promise<product[]> => {
     try {
@@ -46,10 +84,15 @@ const showproductspercategory = async (category: string): Promise<product[]> => 
  * @param {string} req.query.category 
  * @param {number} req.query.page
  */
-export const showproductsperpage = async (req: Request, res: Response): Promise<void> => {
+export const showproductsperpage = async (req: Request, res: Response) => {
     try {
       let products:product[] = [];
       const itemsPerPage = 10;
+
+      if (req.query.page) {
+        res.status(400).json({ message: 'Missing required value page num' });
+        return;
+      }
   
       if (req.query.category) {
         products = await showproductspercategory(req.query.category as string);
@@ -61,10 +104,11 @@ export const showproductsperpage = async (req: Request, res: Response): Promise<
       const currentPage = parseInt(req.query.page as string) || 1;
       products = Pagination(currentPage, products, itemsPerPage);
   
-      res.status(200).json({"status":"success", total_pages: numberOfPages,products:products });
-    } catch (error) {
-      const err = error as Error;
-      res.status(500).json({ message:err});
+      return res.status(200).json({"status":"success", total_pages: numberOfPages,products:products });
+    } catch (e) {
+      
+      const err = e as Error;
+      return res.status(400).json({status:"fail",message: err.message });
     }
   };
 
@@ -74,7 +118,7 @@ export const showproductsperpage = async (req: Request, res: Response): Promise<
  *
  * @param No inputs
  */
-  export const productsrecommendations = async (_req: Request, res: Response): Promise<void> => {
+  export const productsrecommendations = async (_req: Request, res: Response)=> {
     try {
 
         let categories: { category: string }[] = await Products.aggregate([
@@ -112,10 +156,11 @@ export const showproductsperpage = async (req: Request, res: Response): Promise<
         products.push(...productscategorytwo);
       }
   
-      res.status(200).json({"status":"success","data":products});
-    } catch (error) {
-      const err = error as Error;
-      res.status(400).json({ message: err.message });
+      return res.status(200).json({"status":"success","data":products});
+    } catch (e) {
+      
+      const err = e as Error;
+      return res.status(400).json({status:"fail",message: err.message });
     }
   };
 
@@ -126,10 +171,16 @@ export const showproductsperpage = async (req: Request, res: Response): Promise<
  * @param {number} req.query.page
  */
 
-  export const productssearch = async (req: Request, res: Response): Promise<void> => {
+  export const productssearch = async (req: Request, res: Response) => {
     try {
      
       const itemsPerPage = 10;
+
+      if (req.query.search || req.query.page) {
+        res.status(400).json({ message: 'Missing required value search value or page number' });
+        return;
+      }
+      
       const searchQuery = typeof req.query.search === 'string' ? req.query.search : '';
   
     
@@ -141,54 +192,171 @@ export const showproductsperpage = async (req: Request, res: Response): Promise<
      
       const numberOfPages = Math.ceil(products.length / itemsPerPage);
   
-      res.status(200).json({"status":"success",total_pages: numberOfPages, products: productsPaged });
+      return res.status(200).json({"status":"success",total_pages: numberOfPages, products: productsPaged });
 
-    } catch (error) {
-      const err = error as Error;
-      res.status(404).json({ message: err.message });
+    } catch (e) {
+      
+      const err = e as Error;
+      return res.status(400).json({status:"fail",message: err });
     }
   };
 
 /**
  * update quantity of stock
  *
- * @param {Array[product]} req.body
+ * @param {Array[product]} 
  */
 
+export const updatequantity = async (products: orderProduct[]): Promise<string> => {
 
-  export const updatequantity = async (req:Request, res:Response) => {
-    try {
-        const { products } = req.body;
-        for(const product of products){
+  try {
+
+
+    
+      for (const product of products) {
+        
+      
+          const searchedProduct = await Products.findOne({ product_id:product.product_id});
+          
+          if(searchedProduct?.stock == 0){
+            return "stock is empty";
+          }
+
+          if(searchedProduct!.stock < product.quantity){
+            return `there is no enough products in stock for "${searchedProduct!.name}"`
+          }
+          
+          const updatedStock = searchedProduct!.stock - product.quantity;
+          
+
+          if (updatedStock >= 0) {
+            await Products.findOneAndUpdate(
+                  { product_id: product.product_id },
+                  { stock: updatedStock }
+              );
             
-            const searchedProduct = await Products.findOne({ product_id: product.product_id });
-            // @ts-ignore
-            if(searchedProduct.stock - product.quantity <= 0){
+          }
+      }
+      return 'success';
+  } catch (error) {
+      return 'error';
+  }
+};
 
-                await Products.findOneAndUpdate({product_id: product.product_id},{ "stock": 0});
-            }
-            else{
-                // @ts-ignore
-                await Products.findOneAndUpdate({product_id: product.product_id},{"stock": searchedProduct.stock - product.quantity}); 
-            }
-        }
-        res.status(200).json({"status":"success",message: "updated" });
-    } catch (error) {
-        const err = error as Error
-        res.status(500).json({ message: err });
-    }
-}
-
-
+/**
+ * get products by arr items numbers
+ *
+ * @param {Array[string]} req.body.arr
+ */
 
 export const getproductsarr = async (req:Request, res:Response) => {
     try {
-        const {arr} = req.body;
+        const {arr,inside} = req.body;
+        
+
+        if (!arr) {
+          res.status(400).json({ message: 'Missing required values arr' });
+          return;
+      }
 
         const products = await Products.find({product_id: {$in: arr}});
 
-        res.status(200).json({"status":"success",products:products});
+        return inside==false? res.status(200).json({"status":"success",products:products}):products;
     } catch (e) {
-        res.status(400).json({message:e});
+      
+      const err = e as Error;
+      return res.status(400).json({status:"fail",message: err.message });
     }
 }
+
+
+export const getproductsfromserver = async (arr:String[]):Promise< product[] | Error> => {
+  try {
+    
+      const products:product[] = await Products.find({productsid: {$in:arr}});
+      return products
+  } catch (e) {
+    const err = e as string
+    return Error(err)
+  }
+}
+
+
+/**
+ * Validates cart products before processing to purchasing
+ *
+ * @param {array<object>} req.body.cart - an array of user selected products
+ */
+
+export const validateCart = async (req:Request, res:Response) => {
+  
+  const { cart } = req.body;
+
+  if (!cart) {
+    res.status(400).json({ message: 'Missing required value cart items' });
+    return;
+  }
+  let totalPrice = 0;
+  const products:any = [];
+
+  try {
+
+      for (const cartProduct of cart) {
+          
+
+          const product = await Products.findOne({product_id:cartProduct.product_id})
+
+          if (!product) {
+
+              return res.status(404).json({
+                  status:"fail",
+                  message: `${cartProduct.name} was not found in the database`,
+                  product_id: cartProduct.product_id,
+                  name:cartProduct.name
+              });
+          }
+
+          if (product.stock <= 0) {
+
+              return res.status(400).json({
+                  status:"fail",
+                  message: `${product.name} is out of stock`,
+                  product_id: product.product_id,
+                  name:product.name
+              });
+          }
+
+          if (product.stock < cartProduct.quantity) {
+
+              return res.status(400).json({
+                  status:"fail",
+                  message: `Not enough stock for ${product.name} to complete the purchase. Requested items: ${cartProduct.quantity}`,
+                  product_id: product.product_id,
+                  name:product.name
+              });
+          }
+
+          totalPrice += product.price * cartProduct.quantity;
+          products.push({
+              product_id: product.product_id,
+              name: product.name,
+              price: product.price,
+              quantity: cartProduct.quantity
+          });
+      }
+
+      totalPrice = parseFloat(totalPrice.toFixed(2));
+      const token = await generatetoken('12345678',products,totalPrice as unknown as string)
+
+      return res.status(200).json({
+          status:"success",
+          total: totalPrice,
+          cart: products,
+          token:token
+      });
+  } catch (e) {
+      
+    const err = e as Error;
+    return res.status(400).json({status:"fail",message: err.message });
+  }
+};

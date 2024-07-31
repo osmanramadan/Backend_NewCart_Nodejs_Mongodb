@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import Users from '../../model/users';
 import Cipher from '../../authentication/bcrypt';
 import generatetoken from '../../authorization/signtoken';
@@ -34,30 +34,38 @@ interface VerifyRoleRequest extends Request {
     body: {
         id: string;
         role: string;
+        middleware:Boolean
     };
 }
 
 const cipher = new Cipher()
 
+
+/**
+ * insert new user
+ *
+ * @param object<email,password,name?,phone?,address<{first,second}>?,role?> req.body.object
+ */
+
 export const signup = async (req: SignupRequest, res: Response): Promise<Response> => {
+
     const { email, password,name,phone, address, role } = req.body;
 
-    // Basic validation
-    if (!email || !password || !name || !phone || !address || !role) {
+
+    if (!email || !password) {
         return res.status(400).json({ message: "All fields are required" });
     }
 
     try {
-        // Check if the user already exists
+
         const existingUser = await Users.findOne({ email });
         if (existingUser) {
             return res.status(409).json({ message: "User already exists" });
         }
 
-        // Hash the password
         const hashedPassword = await cipher.encrypt(password)
 
-        // Create a new user
+    
         const newUser = new Users({
             email,
             password: hashedPassword,
@@ -65,18 +73,16 @@ export const signup = async (req: SignupRequest, res: Response): Promise<Respons
             phone,
             address,
             role,
-            wishlist: []  // Assuming wishlist is an array, initialize it
+            wishlist: []
         });
 
-        // Save the user to the database
         await newUser.save();
+        const token = await generatetoken(newUser._id as string)
 
-        // Generate a JWT token
-        const token = await generatetoken(newUser.id)
-        console.log(token,'omsna')
         return res.status(201).json({
+            "status":"success",
             user: {
-                _id: newUser._id,
+                id: newUser.id,
                 email: newUser.email,
                 name: newUser.name,
                 phone: newUser.phone,
@@ -87,9 +93,17 @@ export const signup = async (req: SignupRequest, res: Response): Promise<Respons
             token
         });
     } catch (e) {
-        return res.status(500).json({ message: e});
+              
+     const err = e as Error;
+     return res.status(400).json({status:"fail",message: err.message });
     }
 }
+
+/**
+ * access to user acount
+ *
+ * @param object<email,password> req.body.object
+ */
 
 export const login = async (req: LoginRequest, res: Response): Promise<Response> => {
     const { email, password } = req.body;
@@ -113,8 +127,9 @@ export const login = async (req: LoginRequest, res: Response): Promise<Response>
         const token =await generatetoken(user._id)
 
         return res.status(200).json({
+            "status":"success",
             user: {
-                _id: user._id,
+                id: user.id,
                 email: user.email,
                 name: user.name,
                 phone: user.phone,
@@ -125,24 +140,43 @@ export const login = async (req: LoginRequest, res: Response): Promise<Response>
             token
         });
     } catch (e) {
-        return res.status(400).json({ message: e });
+              
+      const err = e as Error;
+      return res.status(400).json({status:"fail",message: err.message });
     }
 }
+
+/**
+ * verify user info by its id
+ *
+ * @param  req.body.id
+ */
 
 export const verifyuser = async (req: VerifyUserRequest, res: Response): Promise<Response> => {
     const { id } = req.body;
     try {
         const user = await Users.findById(id, { password: 0 });
         // @ts-ignore
-        return res.status(200).json({ ...user?._doc });
+        return res.status(200).json({status:"success" , ...user?._doc });
     } catch (e) {
         return res.status(404).json({ message: "User not found" });
     }
 }
 
-export const verifyrole = async (req: VerifyRoleRequest, res: Response): Promise<Response> => {
+/**
+ * verify user role by its id,role
+ *
+ * @param object<id,role> req.body.object
+ */
+
+export const verifyrole = async (req: VerifyRoleRequest,res:Response) => {
     try {
-        const { id, role } = req.body;
+        const { id, role} = req.body;
+        
+        if (!role || !id) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+    
 
         const user = await Users.findById(id, { password: 0 });
 
@@ -151,9 +185,47 @@ export const verifyrole = async (req: VerifyRoleRequest, res: Response): Promise
 
         if (role !== user.role)
             return res.status(401).json({ message: "Unauthorized user" });
+       
+        return  res.status(200).json({status:"success", user })
 
-        return res.status(200).json({ user });
+        
     } catch (e) {
-        return res.status(400).json({ message: e });
+            
+      const err = e as Error;
+      return res.status(400).json({status:"fail",message: err.message });
+    }
+}
+
+
+
+/**
+ * verify user role by its id,role
+ *
+ * @param object<id,role> req.body.object
+ */
+
+export const verifyrolemiddle = async (req: VerifyRoleRequest,res:Response,next:NextFunction) => {
+    try {
+        const { id, role="ADMIN"} = req.body;
+        
+        if (!role || !id) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+    
+
+        const user = await Users.findById(id, { password: 0 });
+
+        if (!user)
+            return res.status(404).json({ message: `User ${id} was not found` });
+
+        if (role !== user.role)
+            return res.status(401).json({ message: "Unauthorized user" });
+        
+        next()
+        
+    } catch (e) {
+            
+      const err = e as Error;
+      return res.status(400).json({status:"fail",message: err.message });
     }
 }

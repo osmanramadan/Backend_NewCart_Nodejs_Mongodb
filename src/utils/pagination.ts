@@ -2,7 +2,7 @@ import { product } from "../types/product";
 
 
 
-const Pagination = (page: number, jsonArray: product[], itemsPerPage: number = 10):product[] => {
+const Pagination = (page: number, jsonArray: product[]|any, itemsPerPage: number = 10):product[] => {
   try {
     const array:product[] = [];
     for (const item of jsonArray) {
