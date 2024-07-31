@@ -7,8 +7,9 @@ dotenv.config();
 interface Options {
   email?:string;
   subject?:string;
-  message?:string;
-  orderid?:string;
+  message:string;
+  orderid:string;
+  status?:string
 }
 
 const sendEmail = async (options: Options) => {
@@ -33,16 +34,17 @@ const sendEmail = async (options: Options) => {
   const response = {
     body: {
       name: options.email,
-      intro: '',
+      intro: 'From mycart website',
       table: {
         data: [
-          {
-            'message': 'Your order has been sended with orderid',
-            code: options.orderid
+          options.status?{
+            'message':options.message  +' '+ options.status
+          }:{
+            'message':options.message  +' '+ options.orderid
           }
         ]
-      },
-      outro: options.message
+      }
+      // outro: options.message
     }
   };
   const mail = MailGenerator.generate(response);

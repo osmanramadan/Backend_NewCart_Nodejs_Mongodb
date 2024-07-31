@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Shipping from '../../model/shipping';
 import Pagination from '../../utils/pagination';
 import { shipping } from '../../types/shipping';
+import sendEmail from '../notification/notification';
 
 
 /**
@@ -151,19 +152,16 @@ export const getshipments = async (req:Request,res:Response) => {
 /**
  *  update shipment for admin only
  
- * @param   req.body.id - id of user
+
  * @param   req.body.status
  * @param   req.body.order_id
  */
 
 export const updateshipment = async (req:Request,res:Response) => {
     try {
-        const {status,id,order_id} = req.body;
+        const {status,order_id,clientEmail} = req.body;
         
        
-        if (!id) {
-            return res.status(400).json({ message: "id of user field is required" });
-        }
 
         if (!order_id) {
             return res.status(400).json({ message: "order_id field is required" });
@@ -173,7 +171,6 @@ export const updateshipment = async (req:Request,res:Response) => {
             return res.status(400).json({ message: "status field is required" });
         }
 
-        // if (status !== 'CREATED' && status !== 'WAITING' && status !== 'COMPLETED' && status !== 'CANCELLED')
         if (status !== 'CREATED' && status !== 'SHIPPED' && status !== 'DELIVERED' && status !== 'RETURNED')
             return res.status(400).json({message: "Please re-type the status correctly "});
 
@@ -184,6 +181,7 @@ export const updateshipment = async (req:Request,res:Response) => {
             { new: true } 
         );
         
+        await sendEmail({email:clientEmail,status:status,orderid:order_id,subject:'change shipping status',message:'Status of your shipping has been changed to'})
 
         return res.status(200).json({status:"success",shipmentresponse});
     } catch (e) {

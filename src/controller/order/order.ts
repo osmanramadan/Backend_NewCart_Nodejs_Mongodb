@@ -4,8 +4,7 @@ import Order from '../../model/order';
 import sendEmail from '../notification/notification';
 import { insertshipmentfromserver } from '../shipping/shipping';
 import Pagination from '../../utils/pagination';
-import { orderProduct } from '../../types/product';
-import { Metadata, Product } from '../../types/payment';
+import { Metadata} from '../../types/payment';
 
 
 
@@ -52,7 +51,7 @@ export const createorder = async (req:Request,res:Response) => {
         
           if(await updatequantity(data.products) === "success"){
              
-             await sendEmail({email:order.email,orderid:order.order_id,subject:'send confirm order',message:''})
+             await sendEmail({email:order.email,orderid:order.order_id,subject:'confirm order',message:'Your order has been sended with orderid'})
          
              await insertshipmentfromserver({ordered_at:order.ordered_at as Date,order_id:order.order_id,total:order.total,address:order.address as string})
 
@@ -121,6 +120,7 @@ export const updateorder = async (req:Request,res:Response) => {
     try {
 
         const orderStatus = req.body.status;
+        const orderClientEmail = req.body.clientEmail;
       
 
         if (!['CREATED', 'PROCESSING', 'FULFILLED', 'CANCELLED'].includes(orderStatus)) {
@@ -135,6 +135,8 @@ export const updateorder = async (req:Request,res:Response) => {
             return res.status(404).json({status:"fail",message: "Order does not exist"});
         }
         updatedOrder.status = orderStatus
+        await sendEmail({email:orderClientEmail,status:orderStatus,orderid:req.params.id,subject:'change order status',message:'Status of your order has been changed to'})
+         
         return res.status(200).json({status:"success",orderdetails:updatedOrder});
 
     } catch (error) {
